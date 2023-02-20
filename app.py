@@ -1,32 +1,9 @@
 import os
 
-import googleapiclient.discovery
+import pandas as pd
 
-
-def request(video_id, api_key, nextPageToken):
-    youtube = googleapiclient.discovery.build(
-        "youtube", "v3", developerKey=api_key)
-    request = youtube.commentThreads().list(
-        part="snippet,replies",
-        videoId=video_id,
-        pageToken=nextPageToken,
-        maxResults=1
-    )
-    response = request.execute()
-    return response
-
-
-def list_comments(items, replies=True):
-    comments = []
-    for comment in items:
-        comments.append(comment['snippet']['topLevelComment']['snippet']['textOriginal'])
-        if replies:
-            if comment['snippet']['totalReplyCount'] > 0:
-                for reply in comment['replies']['comments']:
-                    comments.append(reply['snippet']['textDisplay'])
-
-    return comments
-
+from src.comments import request, list_comments
+from src.sentiment import calculate_sentiment
 
 if __name__ == '__main__':
 
@@ -36,6 +13,7 @@ if __name__ == '__main__':
     comments = []
     nextPageToken = None
 
+    # recupero commenti
     while True:
         response = request(video_id, api_key, nextPageToken)
         comments.append(list_comments(response['items']))
@@ -45,4 +23,12 @@ if __name__ == '__main__':
         nextPageToken = response['nextPageToken']
 
     flatten_comments = [element for sublist in comments for element in sublist]
-    print(flatten_comments)
+
+    # sentiment
+    comments_sentiment = calculate_sentiment(flatten_comments)
+
+    # calcolo sentiment generale
+    df_comments = pd.DataFrame(comments_sentiment, columns=['Comment', 'Sentiment'])
+    video_sentiment = df_comments['Sentiment'].mode()[0]
+
+    print(f"Il video ha un sentiment {video_sentiment}")
